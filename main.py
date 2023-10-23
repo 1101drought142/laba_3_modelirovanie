@@ -71,12 +71,27 @@ def simulation_line():
     zagruz_free_time = 0 #Время когда загруз простаивает
     zagruz_is_free = True #Свободен загруз
 
+    queue_length = {
+        0 : 0,
+        1 : 0,
+        2 : 0,
+        3 : 0,
+    }
+
     #При первой итерации самосвалы находяться рядом с эскаватором приступают к работе сразу
     samosval_list_temp = samosval_list.copy()
 
     for i in range(int(time/delta_t)):
         #Обновляем движения в начале новой итерации
         renew_moves(samosval_list_temp)
+        
+        #Считаем очередь в начале итерации
+
+        waitsamosval_list = get_place_samosval_list_from_list(samosval_list_temp, Place.wait)
+        if (waitsamosval_list):
+            queue_length[len(waitsamosval_list)] += 1
+        else :
+            queue_length[0] += 1
         #Если загруз свободен и есть свободный самосвал заполняем разгруз
         if (zagruz_is_free):
             waitsamosval = get_place_samosval_from_list(samosval_list_temp, Place.wait)
@@ -137,7 +152,10 @@ def simulation_line():
                     road_from_samosval.time_left = 0
 
     print(f'Вес = {weight_active}; Загруз активное время = {zagruz_active_time}; Загруз время простоя = {zagruz_free_time};')
-
+    print("Длинна очереди")
+    print(queue_length)
+    print("Количество итераций")
+    print(i)
 #Запускам симуляцию для трех линий
 def main():
     for i in range(line_count):

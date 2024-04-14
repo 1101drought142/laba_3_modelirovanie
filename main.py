@@ -1,6 +1,11 @@
+# -*- coding: utf-8 -*-
+
 import dataclasses
 from enum import Enum
 import random
+import statistics
+
+from matplotlib import pyplot as plt
 
 #Перечесляемый тип для устновки текущей позиции самосвала в потоке моделирования
 class Place(Enum):
@@ -27,14 +32,12 @@ class Samosval:
 small_samosval = Samosval("small", 20, 5, 2.5, 2, 1.5, Place.wait, 0, False)
 big_samosval = Samosval("big", 50, 10, 3, 4, 2, Place.wait, 0, False)
 
-#Список самосвалов
-samosval_list = [ dataclasses.replace(small_samosval), dataclasses.replace(small_samosval), dataclasses.replace(big_samosval)]
 
 #Количество минут в часу
 hour = 60
 
 #Количество линий     
-line_count = 3
+line_count = 30
 
 #Получаем один самосвал на конкретном этапе моделирования
 def get_place_samosval_from_list(samosval_list_temp: list[Samosval], place: Place) -> None | Samosval :
@@ -61,11 +64,26 @@ def renew_moves(samosval_list_temp: list[Samosval]):
     for samosval in samosval_list_temp:
         samosval.move_made = False
 
+def create_plot1(queue_length_list : list[int]) -> None:
+    plt.title("Средняя длина очереди")
+    plt.xlabel("Время, минуты")
+    plt.ylabel("Длина очереди, ед.")
+    plt.plot(queue_length_list)
+    plt.show()
+#Создание графика
+def create_plot(free_zagruz : list[int]) -> None:
+    plt.title("Средняя загрузка экскаватора")
+    plt.xlabel("Время, минуты")
+    plt.ylabel("Занято, 1; Свободно, 0")
+    plt.bar( [i for i in range( len(free_zagruz) )], free_zagruz, width=1.0)
+    plt.show()
 
 #Симуляция одной линии
 def simulation_line():
+    mean_time = 0 
+
     delta_t = 1 #Дельта Т
-    time = hour * 3 #Время
+    time = hour * 8 #Время
     weight_active = 0 #Вес
     zagruz_active_time = 0 #Время когда загруз активен
     zagruz_free_time = 0 #Время когда загруз простаивает
@@ -76,12 +94,25 @@ def simulation_line():
         1 : 0,
         2 : 0,
         3 : 0,
+        4 : 0,
+        5 : 0,
+        6 : 0,
+        7 : 0,
+        8 : 0,
     }
-
+    queue_length_list = []
+    free_zarguz = []
     #При первой итерации самосвалы находяться рядом с эскаватором приступают к работе сразу
-    samosval_list_temp = samosval_list.copy()
+    samosval_list_temp = [ dataclasses.replace(small_samosval), dataclasses.replace(small_samosval), dataclasses.replace(small_samosval), dataclasses.replace(small_samosval), dataclasses.replace(small_samosval)]
 
-    for i in range(int(time/delta_t)):
+
+    for i in range(int(time/delta_t) + 1):
+
+        if (zagruz_is_free):
+            free_zarguz.append(0)
+        else:
+            free_zarguz.append(1)
+
         #Обновляем движения в начале новой итерации
         renew_moves(samosval_list_temp)
         
@@ -89,9 +120,12 @@ def simulation_line():
 
         waitsamosval_list = get_place_samosval_list_from_list(samosval_list_temp, Place.wait)
         if (waitsamosval_list):
+            queue_length_list.append(len(waitsamosval_list))
             queue_length[len(waitsamosval_list)] += 1
         else :
             queue_length[0] += 1
+            queue_length_list.append(0)
+
         #Если загруз свободен и есть свободный самосвал заполняем разгруз
         if (zagruz_is_free):
             waitsamosval = get_place_samosval_from_list(samosval_list_temp, Place.wait)
@@ -151,16 +185,88 @@ def simulation_line():
                     road_from_samosval.move_made = True
                     road_from_samosval.time_left = 0
 
-    print(f'Вес = {weight_active}; Загруз активное время = {zagruz_active_time}; Загруз время простоя = {zagruz_free_time};')
-    print("Длинна очереди")
-    print(queue_length)
     print("Количество итераций")
     print(i)
+
+    return [zagruz_active_time, zagruz_free_time, queue_length_list, free_zarguz]
+    
 #Запускам симуляцию для трех линий
 def main():
+    res = []
     for i in range(line_count):
-        simulation_line()
 
+        res.append(simulation_line())
+    
+    zagruz_active_time = 0
+    zagruz_free_time = 0
+
+    queue_length_list = []
+    free_zarguz = []
+    for r in res:
+        zagruz_active_time_t, zagruz_free_time_t, queue_length_list_t, free_zarguz_t = r
+        zagruz_active_time += zagruz_active_time_t
+        zagruz_free_time += zagruz_free_time_t
+        
+        if (queue_length_list):
+            for i in range(len(queue_length_list)):
+                queue_length_list[i] += queue_length_list_t[i]
+        else:
+            queue_length_list = queue_length_list_t
+
+        if (free_zarguz):
+            for i in range(len(free_zarguz)):
+                free_zarguz[i] += free_zarguz_t[i]
+        else:
+            free_zarguz = free_zarguz_t
+
+    print(f'Среднее время работы загрузки = { round(zagruz_active_time / line_count, 2) }; Среднее время простоя загрузки = { round(zagruz_free_time / line_count, 2)}; Процент загрузки = {round(zagruz_active_time / (zagruz_active_time + zagruz_free_time) * 100, 2)}%; ; Процент простоя = {round(zagruz_free_time / (zagruz_active_time + zagruz_free_time) * 100, 2)}%;')
+
+    queue_length_list = [i / line_count for i in queue_length_list]
+    free_zarguz = [i / line_count for i in free_zarguz]
+
+    print("Средняя длина очереди", round(statistics.mean(queue_length_list),2))
+    print("Средняя загруженность экскаватора", round(statistics.mean(free_zarguz), 2))
+
+    # create_plot(free_zarguz)
+    # create_plot1(queue_length_list)
+
+# 2 маленьких 1 большой
+# 1 маленький 2 больших
+# 4 маленьких
+# 3 маленьких 1 большой
+# 2 маленьких 2 больших
+# 5 маленьких
+
+# test = [ [290.73, 64.2, 81.91, 18.09, 0.9, 0.61] , [305.87, 68.4, 81.72, 18.28, 0.86, 0.64] , [310.6, 5.33, 98.31, 1.69, 1.71, 0.66] , [310.6, 5.33, 98.31, 1.69, 1.71, 0.66] , [323.77, 7.87, 97.63, 2.37, 1.61, 0.67], [315.8, 0.2, 99.94, 0.06, 2.67, 0.66] ] 
+
+# res_res = []
+# for t in test:
+#     res_res.append(t[0])
+
+
+# print(res_res)
+# plt.title("Среднее время работы экскаватора")
+# plt.xlabel("Типы комбинаций самосвалов, номер")
+# plt.ylabel("Время, минуты")
+# plt.plot(res_res)
+#plt.show()
+
+# plt.title("Процент простоя экскаватора")
+# plt.xlabel("Типы комбинаций самосвалов, номер")
+# plt.ylabel("Загрузка, проценты")
+# plt.plot(res_res)
+# plt.show()
+
+# plt.title("Срелняя загрузка экскаватора")
+# plt.xlabel("Типы комбинаций самосвалов, номер")
+# plt.ylabel("Занято, 1; Свободно, 0")
+# plt.plot(res_res)
+# plt.show()
 
 if __name__ == "__main__":
     main()
+
+#Показатели эффективности
+#Длина очередей
+#Время работы загрузки
+#Время простоя загрузки
